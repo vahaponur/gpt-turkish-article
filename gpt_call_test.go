@@ -40,3 +40,22 @@ func TestClient_GenerateKeywords(t *testing.T) {
 		t.Log(keyword)
 	}
 }
+func TestClient_GenerateArticle(t *testing.T) {
+	loadEnv()
+	client, err := NewGptClient(os.Getenv("API_KEY"))
+	if err != nil {
+		t.Error(fmt.Sprintf("error: %s", err))
+	}
+	topic := "Promosyon Ürünleri(diknot,bloknot,kalem,takvim vs...)"
+	resp, err := client.GenerateKeywords(topic)
+	if err != nil {
+		t.Error(fmt.Sprintf("error calling gpt: %s", err))
+	}
+	article, err := client.GenerateArticle(topic, resp, "https://matbaago.com/promosyon", 3)
+	if err != nil {
+		t.Error(fmt.Sprintf("error calling gpt: %s", err))
+	}
+	t.Logf(article.Title)
+	t.Logf(article.Content)
+	t.Logf(article.MetaDescription)
+}

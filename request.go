@@ -1,7 +1,9 @@
 package gpt_turkish_article
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -53,4 +55,51 @@ func (c *Client) GenerateKeywords(topic string) ([]string, error) {
 	}
 
 	return keywords, nil
+}
+func cleanJSONResponse(response string) (string, error) {
+	//regexin gotunu sikim
+	re := regexp.MustCompile("```json\n((?s).+?\n)```")
+	matches := re.FindStringSubmatch(response)
+	if len(matches) < 2 {
+		if strings.TrimSpace(response)[0] == '{' {
+			return strings.TrimSpace(response), nil
+		}
+		return "", fmt.Errorf("JSON içeriği bulunamadı")
+	}
+	jsonContent := matches[1]
+	jsonContent = strings.TrimSpace(jsonContent)
+
+	return jsonContent, nil
+}
+func (c *Client) GenerateArticle(topic string, keywords []string, backlink string, backlinkCount int) (Article, error) {
+	keywordsStr := strings.Join(keywords, ", ")
+	prompt := fmt.Sprintf(`SEO uyumlu bir makale yaz.Content HTML Olsun.Bak HTML Taglerini kullanman çok önemli bu makale direk backende gidecek html taglerini düzgün kullan content içinde.
+- Konu: %s
+- Anahtar Kelimeler: %s
+- Makale içinde %d kez '%s' adresine backlink ver.
+minimum 100 kelime.
+Sonucu sadece geçerli bir JSON olarak ver. Ek açıklama veya formatlama ekleme. Sadece JSON ver. 
+{
+  "title": "Makale Başlığı",
+  "meta_description": "Meta açıklaması",
+  "content": "Makale içeriği"
+}`, topic, keywordsStr, backlinkCount, backlink)
+
+	response, err := c.requestGpt(prompt)
+	fmt.Println(response)
+	if err != nil {
+		return Article{}, err
+	}
+
+	cleanedResponse, err := cleanJSONResponse(response)
+	if err != nil {
+		return Article{}, err
+	}
+
+	var article Article
+	err = json.Unmarshal([]byte(cleanedResponse), &article)
+	if err != nil {
+		return Article{}, err
+	}
+	return article, nil
 }
