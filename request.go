@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+type ArticleRequest struct {
+	Topic         string   `json:"topic"`
+	Keywords      []string `json:"keywords"`
+	Backlinks     []string `json:"backlinks"`
+	BacklinkCount string   `json:"backlinkCount"`
+	MinCount      string   `json:"minCount"`
+	MaxCount      string   `json:"maxCount"`
+}
+
 func (c *Client) requestGpt(prompt string) (string, error) {
 	reqBody := map[string]interface{}{
 		"model": c.Model,
@@ -102,4 +111,34 @@ Sonucu sadece geçerli bir JSON olarak ver. Ek açıklama veya formatlama ekleme
 		return Article{}, err
 	}
 	return article, nil
+}
+func (c *Client) GenerateImageForArticle(title string, keywords []string) (string, error) {
+	prompt := title
+	if len(keywords) > 0 {
+		prompt = fmt.Sprintf("%s başlığı ve bu keywordlere %s uygun blog post resmi üret", title, strings.Join(keywords, ", "))
+	}
+	reqBody := map[string]interface{}{
+		"model":  c.ImageModel,
+		"prompt": prompt,
+		"n":      1,
+		"size":   defaultImageSize,
+	}
+	var imgResp ImageResponse
+	resp, err := c.client.R().
+		SetHeader("Authorization", "Bearer "+c.APIKey).
+		SetHeader("Content-Type", "application/json").
+		SetBody(reqBody).
+		SetResult(&imgResp).
+		Post(openAIImageAPIURL)
+
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	if resp.IsError() {
+		return "", fmt.Errorf("API error: %s", resp.String())
+	}
+	if len(imgResp.Data) == 0 {
+		return "", fmt.Errorf("no images generated")
+	}
+	return imgResp.Data[0].URL, nil
 }
