@@ -255,15 +255,22 @@ func (c *Client) GenerateBulkBlogContent(keyword string, backlinks []string, top
 		topics = topics[:topicCount]
 	}
 	var contents []GeneratedContent
-	var errors []string
+	var responseErrors []string
+
 	results := make(chan struct {
 		content GeneratedContent
 		err     error
 	}, len(topics))
-
 	for _, topic := range topics {
 		go func(t string) {
 			article, imageBase64, err := c.UltimateGenerate(t, backlinks)
+			var contentErrors []string
+
+			if err != nil {
+				errMsg := fmt.Sprintf("failed for topic '%s': %v", t, err)
+				contentErrors = append(contentErrors, errMsg)
+			}
+
 			result := struct {
 				content GeneratedContent
 				err     error
@@ -272,25 +279,26 @@ func (c *Client) GenerateBulkBlogContent(keyword string, backlinks []string, top
 					Topic:       t,
 					Article:     article,
 					ImageBase64: imageBase64,
+					Errors:      contentErrors,
 				},
 				err: err,
 			}
 			results <- result
 		}(topic)
 	}
-
 	for i := 0; i < len(topics); i++ {
 		result := <-results
 		if result.err != nil {
 			errMsg := fmt.Sprintf("failed for topic '%s': %v", result.content.Topic, result.err)
-			errors = append(errors, errMsg)
+			responseErrors = append(responseErrors, errMsg)
+			contents = append(contents, result.content)
 			continue
 		}
 		contents = append(contents, result.content)
 	}
 	response := &BulkGenerationResponse{
 		Contents: contents,
-		Errors:   errors,
+		Errors:   responseErrors,
 	}
 	if len(contents) == 0 {
 		return response, fmt.Errorf("all content generations failed")
