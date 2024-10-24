@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func loadEnv() {
@@ -42,25 +41,7 @@ func TestClient_GenerateKeywords(t *testing.T) {
 		t.Log(keyword)
 	}
 }
-func TestClient_GenerateArticle(t *testing.T) {
-	loadEnv()
-	client, err := NewGptClient(os.Getenv("API_KEY"))
-	if err != nil {
-		t.Error(fmt.Sprintf("error: %s", err))
-	}
-	topic := "Promosyon Ürünleri(diknot,bloknot,kalem,takvim vs...)"
-	resp, err := client.GenerateKeywords(topic)
-	if err != nil {
-		t.Error(fmt.Sprintf("error calling gpt: %s", err))
-	}
-	article, err := client.GenerateArticle(topic, resp, "https://matbaago.com/promosyon", 3)
-	if err != nil {
-		t.Error(fmt.Sprintf("error calling gpt: %s", err))
-	}
-	t.Logf(article.Title)
-	t.Logf(article.Content)
-	t.Logf(article.MetaDescription)
-}
+
 func TestClient_GenerateImageForArticle(t *testing.T) {
 	loadEnv()
 	client, err := NewGptClient(os.Getenv("API_KEY"))
@@ -96,18 +77,53 @@ func TestClient_GenerateImageForArticle(t *testing.T) {
 	}
 
 }
-func writeToTimestampedFile(content string, prefix string) (string, error) {
-	timestampsDir := "timestamps"
-	if err := os.MkdirAll(timestampsDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create timestamps directory: %w", err)
-	}
-	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	filename := fmt.Sprintf("%s_%s.txt", prefix, timestamp)
-
-	fullPath := filepath.Join(timestampsDir, filename)
-	err := os.WriteFile(fullPath, []byte(content), 0644)
+func TestClient_GenerateBulkBlogContent(t *testing.T) {
+	loadEnv()
+	client, err := NewGptClient(os.Getenv("API_KEY"))
 	if err != nil {
-		return "", fmt.Errorf("failed to write file: %w", err)
+		t.Fatalf("Failed to create client: %v", err)
 	}
-	return fullPath, nil
+
+	keyword := "Davetiye"
+	backlinks := []string{
+		"https://lainvito.com/",
+		"https://lainvito.com/categories/oval-davetiye",
+	}
+	topicCount := 3
+
+	t.Logf("Starting bulk generation for keyword: %s", keyword)
+
+	response, err := client.GenerateBulkBlogContent(keyword, backlinks, topicCount)
+	if err != nil {
+		t.Fatalf("GenerateBulkBlogContent failed: %v", err)
+	}
+
+	// Log successful generations
+	t.Log("\n=== Successfully Generated Contents ===")
+	for i, content := range response.Contents {
+		t.Logf("\nContent #%d:", i+1)
+		t.Logf("Topic: %s", content.Topic)
+		t.Logf("Article Title: %s", content.Article.Title)
+		t.Logf("Article Meta Description: %s", content.Article.MetaDescription)
+		t.Logf("Article Content: %s", content.Article.Content)
+		t.Log("---")
+	}
+
+	// Log errors if any
+	if len(response.Errors) > 0 {
+		t.Log("\n=== Generation Errors ===")
+		for i, err := range response.Errors {
+			t.Logf("Error #%d: %s", i+1, err)
+		}
+	}
+
+	// Basic assertions
+	if len(response.Contents) == 0 {
+		t.Error("No content was generated")
+	}
+
+	if len(response.Contents) > topicCount {
+		t.Errorf("Generated more contents than requested. Got %d, want <= %d",
+			len(response.Contents), topicCount)
+	}
 }
