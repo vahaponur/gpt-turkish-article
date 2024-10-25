@@ -3,6 +3,7 @@ package gpt_turkish_article
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -213,7 +214,8 @@ func (c *Client) UltimateGenerate(topic string, backlinks []string) (Article, st
 	if err != nil {
 		return Article{}, "", fmt.Errorf("article generation failed: %w", err)
 	}
-	time.Sleep(time.Second * 5)
+	//Not sure if this is necessary but dall-e seems to return error making concurrent calls. Can't find any rate limit info though.
+	time.Sleep(time.Second * time.Duration(rand.Intn(4)+3))
 	imageURL, err := c.GenerateImageForArticle(article.Title, keywords)
 	if err != nil {
 		return Article{}, "", fmt.Errorf("image generation failed: %w", err)
