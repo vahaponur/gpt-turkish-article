@@ -134,11 +134,17 @@ Sonucu sadece geçerli bir JSON olarak ver. Ek açıklama veya formatlama ekleme
 	}
 	return article, nil
 }
+
+// c.ImagePrompt overrides title and keywords prompt
 func (c *Client) GenerateImageForArticle(title string, keywords []string) (string, error) {
-	prompt := title
+	prompt := ""
 	if len(keywords) > 0 {
 		prompt = fmt.Sprintf("%s başlığı ve bu keywordlere %s uygun blog post resmi üret", title, strings.Join(keywords, ", "))
 	}
+	if c.ImagePrompt != "" {
+		prompt = c.ImagePrompt
+	}
+
 	reqBody := map[string]interface{}{
 		"model":  c.ImageModel,
 		"prompt": prompt,

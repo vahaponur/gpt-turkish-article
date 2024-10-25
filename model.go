@@ -33,20 +33,22 @@ type Article struct {
 }
 
 type Client struct {
-	APIKey     string
-	Model      string
-	ImageModel string
-	ImageSize  string
-	client     *resty.Client
+	APIKey      string
+	Model       string
+	ImageModel  string
+	ImageSize   string
+	ImagePrompt string
+	client      *resty.Client
 }
 
 func NewGptClient(apiKey string) (*Client, error) {
 	userModel := defaultModel
 	return &Client{
-		APIKey:     apiKey,
-		Model:      userModel,
-		client:     resty.New(),
-		ImageModel: defaulyImageModel,
-		ImageSize:  defaultImageSize,
+		APIKey:      apiKey,
+		Model:       userModel,
+		client:      resty.New(),
+		ImageModel:  defaulyImageModel,
+		ImageSize:   defaultImageSize,
+		ImagePrompt: "",
 	}, nil
 }
