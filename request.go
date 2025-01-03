@@ -168,6 +168,7 @@ func (c *Client) GenerateImageForArticle(title string, keywords []string) (strin
 	if len(imgResp.Data) == 0 {
 		return "", fmt.Errorf("no images generated")
 	}
+	fmt.Println(imgResp.Data[0].URL)
 	return imgResp.Data[0].URL, nil
 }
 func (c *Client) GenerateTopicsFromKeyword(keyword string) ([]string, error) {
@@ -311,5 +312,119 @@ func (c *Client) GenerateBulkBlogContent(keyword string, backlinks []string, top
 	if len(contents) == 0 {
 		return response, fmt.Errorf("all content generations failed")
 	}
+	return response, nil
+}
+func (c *Client) GenerateArticleOnly(topic string, backlinks []string) (Article, error) {
+	if topic == "" {
+		return Article{}, fmt.Errorf("topic cannot be empty")
+	}
+	if len(backlinks) == 0 {
+		return Article{}, fmt.Errorf("backlinks cannot be empty")
+	}
+
+	keywords, err := c.GenerateKeywords(topic)
+	if err != nil {
+		return Article{}, fmt.Errorf("keyword generation failed: %w", err)
+	}
+
+	request := ArticleRequest{
+		Topic:         topic,
+		Keywords:      keywords,
+		Backlinks:     backlinks,
+		BacklinkCount: strconv.Itoa(len(backlinks) * 2),
+		MinCount:      "800",
+		MaxCount:      "1200",
+	}
+
+	article, err := c.GenerateArticle(request)
+	if err != nil {
+		return Article{}, fmt.Errorf("article generation failed: %w", err)
+	}
+
+	return article, nil
+}
+
+type ArticleOnlyContent struct {
+	Topic   string   `json:"topic"`
+	Article Article  `json:"article"`
+	Errors  []string `json:"errors,omitempty"`
+}
+
+type BulkArticleResponse struct {
+	Contents []ArticleOnlyContent `json:"contents"`
+	Errors   []string             `json:"errors,omitempty"`
+}
+
+func (c *Client) GenerateBulkArticlesOnly(keyword string, backlinks []string, topicCount int) (*BulkArticleResponse, error) {
+	if keyword == "" {
+		return nil, fmt.Errorf("keyword cannot be empty")
+	}
+	if len(backlinks) == 0 {
+		return nil, fmt.Errorf("backlinks cannot be empty")
+	}
+	if topicCount <= 0 {
+		return nil, fmt.Errorf("topic count must be positive")
+	}
+
+	topics, err := c.GenerateTopicsFromKeyword(keyword)
+	if err != nil {
+		return nil, fmt.Errorf("topic generation failed: %w", err)
+	}
+
+	if len(topics) > topicCount {
+		topics = topics[:topicCount]
+	}
+
+	var contents []ArticleOnlyContent
+	var responseErrors []string
+
+	results := make(chan struct {
+		content ArticleOnlyContent
+		err     error
+	}, len(topics))
+
+	for _, topic := range topics {
+		go func(t string) {
+			article, err := c.GenerateArticleOnly(t, backlinks)
+			var contentErrors []string
+
+			if err != nil {
+				errMsg := fmt.Sprintf("failed for topic '%s': %v", t, err)
+				contentErrors = append(contentErrors, errMsg)
+			}
+
+			result := struct {
+				content ArticleOnlyContent
+				err     error
+			}{
+				content: ArticleOnlyContent{
+					Topic:   t,
+					Article: article,
+					Errors:  contentErrors,
+				},
+				err: err,
+			}
+			results <- result
+		}(topic)
+	}
+
+	for i := 0; i < len(topics); i++ {
+		result := <-results
+		if result.err != nil {
+			errMsg := fmt.Sprintf("failed for topic '%s': %v", result.content.Topic, result.err)
+			responseErrors = append(responseErrors, errMsg)
+		}
+		contents = append(contents, result.content)
+	}
+
+	response := &BulkArticleResponse{
+		Contents: contents,
+		Errors:   responseErrors,
+	}
+
+	if len(contents) == 0 {
+		return response, fmt.Errorf("all content generations failed")
+	}
+
 	return response, nil
 }
